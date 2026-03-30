@@ -11,7 +11,14 @@ export default async function handler(req, res) {
     if (!prompt) return res.status(400).json({ error: 'No prompt' });
 
     const GROQ_KEY = process.env.GROQ_API_KEY;
-    const models = ['llama3-8b-8192', 'gemma2-9b-it', 'mixtral-8x7b-32768'];
+    if (!GROQ_KEY) return res.status(500).json({ error: 'API key not configured' });
+
+    const models = [
+      'llama3-8b-8192',
+      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
+      'gemma2-9b-it'
+    ];
 
     for (const model of models) {
       try {
@@ -31,16 +38,18 @@ export default async function handler(req, res) {
 
         if (!r.ok) {
           const err = await r.json();
-          if (r.status === 429) continue;
-          throw new Error(err.error?.message || 'API error');
+          const msg = err.error?.message || '';
+          if (r.status === 429 || r.status === 404 || msg.includes('quota') || msg.includes('not found')) continue;
+          return res.status(500).json({ error: msg || 'API error' });
         }
 
         const data = await r.json();
-        return res.status(200).json({ result: data.choices[0].message.content });
+        const text = data.choices?.[0]?.message?.content;
+        if (!text) continue;
+        return res.status(200).json({ result: text });
 
       } catch (e) {
-        if (e.message?.includes('429') || e.message?.includes('quota')) continue;
-        throw e;
+        continue;
       }
     }
 
