@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BugZap — AI Code Debugger</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#06090f;--surface:#0c1018;--card:#101620;--card2:#131b24;--border:#1c2535;--border2:#243044;--green:#00e5a0;--green-dim:rgba(0,229,160,0.1);--green-glow:rgba(0,229,160,0.3);--red:#ff4d6d;--red-dim:rgba(255,77,109,0.1);--blue:#4d9fff;--blue-dim:rgba(77,159,255,0.1);--yellow:#ffd166;--text:#c9d4e8;--text2:#7a8fa8;--text3:#3d5168;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font);}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,160,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.025) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse 700px 500px at 10% 15%,rgba(0,229,160,0.05) 0%,transparent 70%),radial-gradient(ellipse 600px 500px at 90% 85%,rgba(77,159,255,0.05) 0%,transparent 70%);}
+nav{position:sticky;top:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;background:rgba(6,9,15,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{display:flex;align-items:center;gap:12px;font-size:1.25rem;font-weight:800;color:#fff;letter-spacing:-0.02em;}
+.logo-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--green),#00b8ff);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px var(--green-glow);animation:logopulse 3s ease-in-out infinite;}
+@keyframes logopulse{0%,100%{box-shadow:0 0 16px var(--green-glow);}50%{box-shadow:0 0 32px var(--green-glow),0 0 60px rgba(0,229,160,0.15);}}
+.nav-pill{font-family:var(--mono);font-size:0.65rem;letter-spacing:0.12em;padding:5px 14px;border-radius:20px;background:var(--green-dim);color:var(--green);border:1px solid rgba(0,229,160,0.2);}
+.hero{position:relative;z-index:1;text-align:center;padding:60px 20px 44px;}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:0.7rem;letter-spacing:0.15em;color:var(--green);text-transform:uppercase;background:var(--green-dim);border:1px solid rgba(0,229,160,0.2);padding:6px 16px;border-radius:20px;margin-bottom:20px;}
+.hero h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;color:#fff;letter-spacing:-0.04em;line-height:1.1;margin-bottom:16px;}
+.grad{background:linear-gradient(135deg,var(--green) 0%,#00cfff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero p{font-size:1rem;color:var(--text2);max-width:500px;margin:0 auto 36px;line-height:1.7;}
+.hero-stats{display:flex;align-items:center;justify-content:center;gap:36px;flex-wrap:wrap;}
+.stat-num{font-size:1.5rem;font-weight:800;color:#fff;text-align:center;}
+.stat-label{font-size:0.7rem;color:var(--text3);font-family:var(--mono);text-align:center;margin-top:2px;}
+.workspace{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:0 24px 60px;}
+.workspace-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+.panel-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.5);}
+.panel-top{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;background:var(--card2);border-bottom:1px solid var(--border);}
+.panel-label{display:flex;align-items:center;gap:8px;font-size:0.7rem;font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);}
+.traffic-lights{display:flex;gap:6px;margin-right:2px;}
+.tl{width:10px;height:10px;border-radius:50%;}
+.tl-r{background:#ff5f57;}.tl-y{background:#febc2e;}.tl-g{background:#28c840;}
+select.lang-pick{font-family:var(--mono);font-size:0.7rem;background:var(--surface);color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;cursor:pointer;outline:none;}
+.editor-wrap{position:relative;display:flex;min-height:360px;}
+.line-nums{width:48px;min-height:360px;padding:16px 12px 16px 0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;overflow:hidden;}
+.line-nums span{display:block;font-family:var(--mono);font-size:0.7rem;color:var(--text3);line-height:1.65rem;min-height:1.65rem;opacity:0.6;}
+textarea#code-input{flex:1;min-height:360px;resize:none;padding:16px;background:transparent;border:none;outline:none;font-family:var(--mono);font-size:0.8rem;color:var(--text);line-height:1.65rem;tab-size:2;caret-color:var(--green);}
+textarea#code-input::placeholder{color:var(--text3);}
+.panel-foot{padding:14px 18px;background:var(--card2);border-top:1px solid var(--border);display:flex;gap:10px;}
+.btn-primary{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px 20px;border:none;border-radius:10px;cursor:pointer;font-family:var(--font);font-size:0.88rem;font-weight:700;background:linear-gradient(135deg,var(--green),#00cfff);color:#04120d;box-shadow:0 4px 20px rgba(0,229,160,0.3);transition:all 0.2s;}
+.btn-primary:disabled{background:var(--border);color:var(--text3);box-shadow:none;cursor:not-allowed;}
+.btn-ghost{padding:13px 16px;border-radius:10px;cursor:pointer;font-family:var(--mono);font-size:0.72rem;background:transparent;color:var(--text2);border:1px solid var(--border2);transition:all 0.2s;}
+.btn-ghost:hover{border-color:var(--red);color:var(--red);}
+.output-body{padding:20px;display:flex;flex-direction:column;gap:16px;}
+.idle-msg{padding:48px 20px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;}
+.idle-icon{width:64px;height:64px;border-radius:16px;background:var(--card2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:4px;}
+.idle-msg h3{font-size:1rem;color:var(--text2);font-weight:600;}
+.idle-msg p{font-size:0.78rem;color:var(--text3);font-family:var(--mono);line-height:1.7;}
+.kbd{display:inline-block;padding:1px 8px;background:var(--card2);border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);font-size:0.68rem;color:var(--text2);}
+.loading-wrap{display:none;padding:48px 20px;flex-direction:column;align-items:center;gap:16px;}
+.spinner{width:48px;height:48px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin 0.75s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-label{font-family:var(--mono);font-size:0.75rem;color:var(--text3);animation:pulse2 1.5s ease-in-out infinite;}
+@keyframes pulse2{0%,100%{opacity:0.4;}50%{opacity:1;}}
+.r-block{border-radius:12px;overflow:hidden;border:1px solid var(--border);animation:fadeUp 0.35s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.r-head{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:0.7rem;font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;font-weight:600;}
+.r-head.err{background:var(--red-dim);color:var(--red);border-bottom:1px solid rgba(255,77,109,0.15);}
+.r-head.fix{background:var(--green-dim);color:var(--green);border-bottom:1px solid rgba(0,229,160,0.15);}
+.r-head.exp{background:var(--blue-dim);color:var(--blue);border-bottom:1px solid rgba(77,159,255,0.15);}
+.r-body{padding:16px;background:var(--card);}
+.err-list{list-style:none;display:flex;flex-direction:column;gap:10px;}
+.err-item{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;background:rgba(255,77,109,0.05);border:1px solid rgba(255,77,109,0.12);}
+.err-badge{min-width:26px;height:20px;background:rgba(255,77,109,0.15);color:var(--red);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-family:var(--mono);font-weight:600;flex-shrink:0;margin-top:2px;}
+.err-desc{font-size:0.82rem;color:var(--text);line-height:1.5;}
+.err-meta{font-size:0.68rem;color:var(--text3);font-family:var(--mono);margin-top:4px;}
+.sev-err{color:var(--red);}.sev-warn{color:var(--yellow);}
+.cblock{background:#060d14;border-radius:8px;overflow:hidden;}
+.cblock-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border);}
+.cblock-lang{font-size:0.65rem;font-family:var(--mono);color:var(--text3);letter-spacing:0.1em;}
+.copy-btn{font-family:var(--mono);font-size:0.65rem;padding:6px 14px;border-radius:6px;cursor:pointer;background:var(--green-dim);color:var(--green);border:1px solid rgba(0,229,160,0.3);font-weight:600;}
+.copy-btn.ok{background:rgba(0,229,160,0.25);}
+.cblock pre{padding:16px;overflow-x:auto;font-family:var(--mono);font-size:0.78rem;color:#8fc7a0;line-height:1.7;white-space:pre;}
+.exp-text{font-size:0.85rem;line-height:1.8;color:var(--text);}
+.exp-text code{font-family:var(--mono);font-size:0.78rem;background:rgba(77,159,255,0.1);color:var(--blue);padding:1px 6px;border-radius:4px;}
+.success-box{display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;background:var(--green-dim);border:1px solid rgba(0,229,160,0.2);}
+.success-icon{font-size:1.8rem;}.success-title{font-size:0.95rem;font-weight:700;color:var(--green);margin-bottom:3px;}.success-sub{font-size:0.75rem;color:var(--text2);font-family:var(--mono);}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0;}
+.sdot.green{background:var(--green);box-shadow:0 0 8px var(--green-glow);}.sdot.red{background:var(--red);}
+.busy-box{display:flex;align-items:flex-start;gap:14px;padding:18px;border-radius:12px;background:rgba(255,209,102,0.08);border:1px solid rgba(255,209,102,0.2);}
+.busy-icon{font-size:1.6rem;flex-shrink:0;}.busy-title{font-size:0.92rem;font-weight:700;color:var(--yellow);margin-bottom:4px;}.busy-sub{font-size:0.78rem;color:var(--text2);line-height:1.6;}
+.retry-btn{margin-top:10px;padding:8px 18px;background:var(--yellow);color:#1a1400;border:none;border-radius:8px;font-family:var(--font);font-weight:700;font-size:0.8rem;cursor:pointer;}
+footer{position:relative;z-index:1;text-align:center;padding:24px;border-top:1px solid var(--border);font-size:0.72rem;font-family:var(--mono);color:var(--text3);}
+footer span{color:var(--green);}
+@media(max-width:800px){nav{padding:0 20px;}.workspace{padding:0 16px 40px;}.workspace-grid{grid-template-columns:1fr;gap:16px;}.hero{padding:40px 20px 32px;}.hero-stats{gap:20px;}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo"><div class="logo-mark">⚡</div>BugZap</div>
+  <div class="nav-pill">AI-Powered Debugger</div>
+</nav>
+<section class="hero">
+  <div class="hero-eyebrow">⚡ Instant Code Analysis</div>
+  <h1>Fix bugs in seconds<br/>with <span class="grad">AI precision</span></h1>
+  <p>Paste any broken code — BugZap finds every error, explains what went wrong, and gives you clean working code instantly.</p>
+  <div class="hero-stats">
+    <div><div class="stat-num">13+</div><div class="stat-label">languages</div></div>
+    <div><div class="stat-num" style="color:var(--green)">∞</div><div class="stat-label">free uses</div></div>
+    <div><div class="stat-num">AI</div><div class="stat-label">powered</div></div>
+  </div>
+</section>
+<div class="workspace">
+  <div class="workspace-grid">
+    <div class="panel-card">
+      <div class="panel-top">
+        <div class="panel-label"><div class="traffic-lights"><div class="tl tl-r"></div><div class="tl tl-y"></div><div class="tl tl-g"></div></div>Input Code</div>
+        <select class="lang-pick" id="lang-select">
+          <option value="auto">🔍 Auto Detect</option>
+          <option value="python">Python</option><option value="javascript">JavaScript</option>
+          <option value="typescript">TypeScript</option><option value="java">Java</option>
+          <option value="c++">C++</option><option value="c">C</option>
+          <option value="go">Go</option><option value="rust">Rust</option>
+          <option value="php">PHP</option><option value="ruby">Ruby</option>
+          <option value="swift">Swift</option><option value="kotlin">Kotlin</option>
+          <option value="sql">SQL</option>
+        </select>
+      </div>
+      <div class="editor-wrap">
+        <div class="line-nums" id="line-nums"><span>1</span></div>
+        <textarea id="code-input" spellcheck="false" autocomplete="off" placeholder="# Paste your buggy code here..."></textarea>
+      </div>
+      <div class="panel-foot">
+        <button class="btn-primary" id="analyze-btn" onclick="analyzeCode()"><span id="btn-icon">⚡</span><span id="btn-txt">Analyze &amp; Fix</span></button>
+        <button class="btn-ghost" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-top">
+        <div class="panel-label"><div id="sdot" class="sdot"></div>Debug Results</div>
+        <span id="status-txt" style="font-family:var(--mono);font-size:0.68rem;color:var(--text3);">waiting for input</span>
+      </div>
+      <div class="output-body">
+        <div class="idle-msg" id="idle-msg">
+          <div class="idle-icon">🔍</div>
+          <h3>Ready to debug</h3>
+          <p>Paste your code and click<br/><strong style="color:var(--green)">Analyze &amp; Fix</strong><br/><br/>or press <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></p>
+        </div>
+        <div class="loading-wrap" id="loading-wrap"><div class="spinner"></div><div class="loading-label" id="loading-label">Scanning for bugs…</div></div>
+        <div id="results"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer>BugZap — AI Code Debugger &nbsp;·&nbsp; <span>Analyze. Fix. Ship.</span></footer>
+<script>
+var API_URL='/api/debug';
+var ta=document.getElementById('code-input');
+var ln=document.getElementById('line-nums');
+function syncLines(){var lines=ta.value.split('\n');var h='';for(var i=0;i<lines.length;i++)h+='<span>'+(i+1)+'</span>';ln.innerHTML=h;}
+ta.addEventListener('input',syncLines);
+ta.addEventListener('scroll',function(){ln.scrollTop=ta.scrollTop;});
+ta.addEventListener('keydown',function(e){
+  if(e.key==='Tab'){e.preventDefault();var s=ta.selectionStart;ta.value=ta.value.substring(0,s)+'  '+ta.value.substring(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+2;syncLines();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter')analyzeCode();
+});
+syncLines();
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function setStatus(t,d){document.getElementById('status-txt').textContent=t;document.getElementById('sdot').className='sdot'+(d?' '+d:'');}
+function showIdle(){document.getElementById('idle-msg').style.display='flex';document.getElementById('loading-wrap').style.display='none';document.getElementById('results').innerHTML='';setStatus('waiting for input','');}
+function clearAll(){ta.value='';syncLines();showIdle();}
+var _store={};
+document.addEventListener('click',function(e){
+  if(e.target&&e.target.classList.contains('copy-btn')){var key=e.target.getAttribute('data-key');if(key&&_store[key])doCopy(e.target,_store[key]);}
+  if(e.target&&e.target.classList.contains('retry-btn'))analyzeCode();
+});
+function doCopy(btn,text){
+  var tmp=document.createElement('textarea');tmp.value=text;tmp.style.cssText='position:fixed;top:0;left:0;opacity:0;width:1px;height:1px;';
+  document.body.appendChild(tmp);tmp.focus();tmp.select();
+  var ok=false;try{ok=document.execCommand('copy');}catch(e){}
+  document.body.removeChild(tmp);
+  if(!ok&&navigator.clipboard){navigator.clipboard.writeText(text).catch(function(){});ok=true;}
+  if(ok){btn.textContent='✓ Copied!';btn.classList.add('ok');setTimeout(function(){btn.textContent='Copy';btn.classList.remove('ok');},2500);}
+}
+var loadMsgs=['Scanning for bugs…','Analyzing syntax…','Checking logic…','Preparing fix…'];
+var loadTimer=null;
+async function analyzeCode(){
+  var code=ta.value.trim();if(!code){ta.focus();return;}
+  var lang=document.getElementById('lang-select').value;
+  var btn=document.getElementById('analyze-btn');
+  btn.disabled=true;document.getElementById('btn-txt').textContent='Analyzing…';document.getElementById('btn-icon').textContent='⏳';
+  document.getElementById('idle-msg').style.display='none';document.getElementById('results').innerHTML='';
+  document.getElementById('loading-wrap').style.display='flex';setStatus('analyzing…','');
+  var mi=0;loadTimer=setInterval(function(){document.getElementById('loading-label').textContent=loadMsgs[mi%loadMsgs.length];mi++;},900);
+  var langHint=lang==='auto'?'':' The language is '+lang+'.';
+  var prompt='You are an expert code debugger.'+langHint+' Analyze this code for ALL bugs.\nRESPOND WITH ONLY RAW JSON — no markdown, no backticks.\n{"language":"name","hasErrors":true,"errors":[{"id":1,"description":"bug","line":"line or null","severity":"error"}],"fixedCode":"fixed code","explanation":"what was fixed"}\nCode:\n'+code;
+  try{
+    var res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prompt})});
+    var data=await res.json();
+    if(!res.ok||data.error==='busy'){renderBusy();return;}
+    if(data.error)throw new Error(data.error);
+    var raw=data.result.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```\s*$/,'').trim();
+    var m=raw.match(/\{[\s\S]*\}/);if(m)raw=m[0];
+    renderResults(JSON.parse(raw));
+  }catch(err){renderBusy();}
+  finally{
+    clearInterval(loadTimer);document.getElementById('loading-wrap').style.display='none';
+    btn.disabled=false;document.getElementById('btn-txt').textContent='Analyze & Fix';document.getElementById('btn-icon').textContent='⚡';
+  }
+}
+function renderResults(r){
+  var div=document.getElementById('results');var html='';
+  if(!r.hasErrors){
+    setStatus('✓ no errors found','green');
+    html='<div class="success-box"><div class="success-icon">✅</div><div><div class="success-title">No bugs found!</div><div class="success-sub">Your '+esc(r.language||'code')+' looks clean.</div></div></div>';
+    if(r.explanation)html+='<div class="r-block" style="margin-top:16px"><div class="r-head exp">💡 Notes</div><div class="r-body"><div class="exp-text">'+formatExp(r.explanation)+'</div></div></div>';
+    div.innerHTML=html;return;
+  }
+  setStatus(r.errors.length+' issue'+(r.errors.length!==1?'s':'')+' found','red');
+  var ei=r.errors.map(function(e){return '<li class="err-item"><div class="err-badge">#'+e.id+'</div><div><div class="err-desc">'+esc(e.description)+'</div><div class="err-meta">'+(e.line?'Line '+esc(String(e.line))+' · ':'')+'<span class="'+(e.severity==='error'?'sev-err':'sev-warn')+'">'+esc(e.severity)+'</span></div></div></li>';}).join('');
+  html+='<div class="r-block"><div class="r-head err">⚠ '+r.errors.length+' Bug'+(r.errors.length!==1?'s':'')+' Detected</div><div class="r-body"><ul class="err-list">'+ei+'</ul></div></div>';
+  if(r.fixedCode){var uid='k'+Date.now();_store[uid]=r.fixedCode;html+='<div class="r-block"><div class="r-head fix">✓ Fixed Code</div><div class="r-body" style="padding:0"><div class="cblock"><div class="cblock-head"><span class="cblock-lang">'+esc(r.language||'code')+'</span><button class="copy-btn" data-key="'+uid+'">Copy</button></div><pre>'+esc(r.fixedCode)+'</pre></div></div></div>';}
+  if(r.explanation)html+='<div class="r-block"><div class="r-head exp">💡 Explanation</div><div class="r-body"><div class="exp-text">'+formatExp(r.explanation)+'</div></div></div>';
+  div.innerHTML=html;
+}
+function renderBusy(){setStatus('busy','');document.getElementById('results').innerHTML='<div class="busy-box"><div class="busy-icon">⏳</div><div><div class="busy-title">Service is busy</div><div class="busy-sub">Please wait a moment and try again!</div><button class="retry-btn">🔄 Try Again</button></div></div>';}
+function formatExp(t){return esc(t).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\n/g,'<br/>');}
+</script>
+</body>
+</html>
